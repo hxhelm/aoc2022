@@ -1,6 +1,5 @@
 use std::ops::{RangeInclusive};
 use std::str::FromStr;
-use itertools::max;
 
 #[derive(Debug)]
 struct SectionRange {
