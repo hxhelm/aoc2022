@@ -1,13 +1,11 @@
-use std::collections::{HashMap};
 use nom::branch::alt;
 use nom::bytes::complete::tag;
-use nom::character::complete::{digit1};
+use nom::character::complete::digit1;
 use nom::IResult;
-use nom::multi::separated_list1;
+use std::collections::HashMap;
 
 #[derive(Debug)]
 struct File {
-    name: String,
     size: i32,
 }
 
@@ -24,12 +22,10 @@ impl FileSystem {
                 return;
             }
 
-            let mut vec = self.cwd
-                .split("/")
-                .collect::<Vec<_>>();
+            let mut vec = self.cwd.split('/').collect::<Vec<_>>();
 
             // remove last directory, keep / at end
-            vec.remove(vec.len()-2);
+            vec.remove(vec.len() - 2);
 
             self.cwd = vec.join("/");
 
@@ -41,7 +37,7 @@ impl FileSystem {
             return;
         }
 
-        self.cwd = [&self.cwd, dir, "/"].join("").to_string();
+        self.cwd = [&self.cwd, dir, "/"].join("");
     }
 
     fn mkdir(&mut self, name: &str) {
@@ -51,31 +47,23 @@ impl FileSystem {
             return;
         }
 
-        self.files.insert(
-            directory_path,
-            vec![],
-        );
+        self.files.insert(directory_path, vec![]);
     }
 
-    fn touch(&mut self, filename: &str, filesize: i32) {
+    fn touch(&mut self, filesize: i32) {
         let directory = self.files.get_mut(self.cwd.as_str()).unwrap();
-        directory.push(File {
-            name: filename.to_string(),
-            size: filesize
-        });
+        directory.push(File { size: filesize });
     }
 
     fn get_dir_size(&self, dir: &str) -> i32 {
         let mut size = 0;
 
-        for (directory, files) in self.files.iter() {
-            if !directory.contains(&dir) {
+        for (directory, files) in &self.files {
+            if !directory.contains(dir) {
                 continue;
             }
 
-            size += files.iter()
-                .map(|file| file.size)
-                .sum::<i32>();
+            size += files.iter().map(|file| file.size).sum::<i32>();
         }
 
         size
@@ -91,41 +79,37 @@ enum Instruction {
 }
 
 fn parse_line(input: &str) -> IResult<&str, Instruction> {
-    let (input, line_match) = alt((
-        tag("$ "),
-        tag("dir "),
-        digit1
-    ))(input)?;
+    let (input, line_match) = alt((tag("$ "), tag("dir "), digit1))(input)?;
 
     let result = match line_match {
-        "$ " => match input {
-            "ls" => Instruction::Skip,
-            _ => {
-                let dir = input.split(" ").last().unwrap();
+        "$ " => {
+            if input == "ls" {
+                Instruction::Skip
+            } else {
+                let dir = input.split(' ').last().unwrap();
                 Instruction::ChangeDirectory(dir.to_string())
-            },
-        },
+            }
+        }
         "dir " => Instruction::AddDirectory(input.to_string()),
-        _ => Instruction::AddFile(
-            line_match.parse::<i32>().unwrap(),
-            input.trim().to_string(),
-        ),
+        _ => Instruction::AddFile(line_match.parse::<i32>().unwrap(), input.trim().to_string()),
     };
     Ok((input, result))
 }
 
-fn parse_instruction_lines(input: &str) -> IResult<&str, Vec<Instruction>> {
-    let instructions = input.lines()
+fn parse_instruction_lines(input: &str) -> (&str, Vec<Instruction>) {
+    let instructions = input
+        .lines()
         .map(|line| -> Instruction {
-            let (_, instruction) = parse_line(&line).unwrap();
+            let (_, instruction) = parse_line(line).unwrap();
 
             instruction
         })
         .collect();
 
-    Ok((input, instructions))
+    (input, instructions)
 }
 
+#[must_use]
 pub fn part_one(input: &str) -> Option<i32> {
     let starting_working_directory = String::from("/");
     let mut files = HashMap::new();
@@ -136,22 +120,22 @@ pub fn part_one(input: &str) -> Option<i32> {
         files,
     };
 
-    let (_, lines) = parse_instruction_lines(input).unwrap();
+    let (_, lines) = parse_instruction_lines(input);
 
     for line in lines {
         match line {
             Instruction::ChangeDirectory(cmd) => filesystem.cd(&cmd),
             Instruction::AddDirectory(dir) => filesystem.mkdir(&dir),
-            Instruction::AddFile(size, name) => filesystem.touch(&name, size),
+            Instruction::AddFile(size, _) => filesystem.touch(size),
             Instruction::Skip => continue,
         };
     }
 
     let mut total_size = 0;
-    for (directory, _) in &filesystem.files {
-        let dirsize = &filesystem.get_dir_size(&directory);
+    for directory in filesystem.files.keys() {
+        let dirsize = &filesystem.get_dir_size(directory);
 
-        if *dirsize < 100000 {
+        if *dirsize < 100_000 {
             total_size += *dirsize;
         }
     }
@@ -159,6 +143,7 @@ pub fn part_one(input: &str) -> Option<i32> {
     Some(total_size)
 }
 
+#[must_use]
 pub fn part_two(input: &str) -> Option<i32> {
     let starting_working_directory = String::from("/");
     let mut files = HashMap::new();
@@ -169,19 +154,19 @@ pub fn part_two(input: &str) -> Option<i32> {
         files,
     };
 
-    let (_, lines) = parse_instruction_lines(input).unwrap();
+    let (_, lines) = parse_instruction_lines(input);
 
     for line in lines {
         match line {
             Instruction::ChangeDirectory(cmd) => filesystem.cd(&cmd),
             Instruction::AddDirectory(dir) => filesystem.mkdir(&dir),
-            Instruction::AddFile(size, name) => filesystem.touch(&name, size),
+            Instruction::AddFile(size, _) => filesystem.touch(size),
             Instruction::Skip => continue,
         };
     }
 
-    let total_space = 70000000;
-    let needed_for_update = 30000000;
+    let total_space = 70_000_000;
+    let needed_for_update = 30_000_000;
 
     let used = filesystem.get_dir_size("/");
     let available = total_space - used;
@@ -189,11 +174,11 @@ pub fn part_two(input: &str) -> Option<i32> {
 
     let mut current_dirsize = used;
 
-    for (directory, _) in &filesystem.files {
-        let &dirsize = &filesystem.get_dir_size(&directory);
+    for directory in filesystem.files.keys() {
+        let &dirsize = &filesystem.get_dir_size(directory);
 
         if dirsize < need_to_delete || dirsize > current_dirsize {
-            continue
+            continue;
         }
 
         current_dirsize = dirsize;
